@@ -16,7 +16,7 @@ var vgs = function() {
 	// some DOM objects that get inserted when needed
 	var mask = "<div id='vgMask' class='vg-mask'></div>";
 	var spin = "<div id='vgSpin' class='ball-loader'> <p> Loading... </p></div>";
-	var modal = "<div id='vgModal' class='vg-modal'><div class='vg-modal-head'><div class='vg-close vg-tabable'>&#215</div><div class='vg-title'></div></div><div class='vg-modal-body'></div><div class='vg-btn-bar'></div></div>";
+	var modal = "<div class='vg-modal'><div class='vg-modal-head'><div class='vg-close vg-tabable'>&#215</div><div class='vg-title'></div></div><div class='vg-modal-body'></div><div class='vg-btn-bar'></div></div>";
 	var btn = "<div class='vg-btn vg-tabable'></div>";
 
 	var that = this;
@@ -89,8 +89,11 @@ var vgs = function() {
 	//
 	// options = {data: {<data for template>}, title: "Title String", buttons: ['btn1', 'btn2', 'btn3']}
 
+	var MODAL_ID = 1;
+
 	this.showModal = function(template, options, cb) {
-		var e;
+
+		var html, modalTag, modalElement;
 		var template = new EJS({url: "/templates/" + template + ".ejs"});
 		var data = null;
 		var buttons = ['ok'];
@@ -106,30 +109,61 @@ var vgs = function() {
 			
 		if (template) {
 			that.showMask();
-			e = template.render(data);
-			$("#vgMask").append(modal);
-			el = $(".vg-modal-body").append(e);
-			$(".vg-title").text(options.title);
+
+			modalTag = modal;
+			modalId = "vg-modal-" + MODAL_ID++;
+			modalElement = $(modalTag).attr("id", modalId);
+			console.log("setting ID to " + modalId);
+
+			$("#vgMask").append(modalElement);
+			modalElement = $("#"+modalId);
+
+			html = template.render(data);
+			modalElement.find(".vg-modal-body").append(html);
+			modalElement.find(".vg-title").text(options.title);
 
 			// add buttons
-			setupButtons ($(".vg-btn-bar"), buttons, cb);
+			setupButtons (modalElement.find(".vg-btn-bar"), buttons, cb);
 			// setup actions
-			setBtnClick ($('.vg-close'), that.hideModal);
-			$('.vg-close').attr("tabindex", 0);
+			setBtnClick (modalElement.find('.vg-close'), that.hideModal);
+			modalElement.find('.vg-close').attr("tabindex", 0);
 
-			centerWindow($(".vg-modal"));
+			centerWindow(modalElement);
+
 			$(window).resize(function() {
-				centerWindow($(".vg-modal"));
+				centerWindow(modalElement);
 				sizeMask();
 			});
 		}	
 	}
 
 	//----------------------------------------------------------------
+	// textModal
+	//
+	// callback is called BEFORE the modal is dismissed.  if you return
+	// "keep" from the callback, the modal will not be dismissed
+	this.textModal = function(message, btns, cb) {
+		var opts = {title: "Enter Text",
+				data: {msg: message},
+				buttons:['Ok']
+		}
+		if (exists(btns)) {
+			opts.buttons = btns;
+		}
+		that.showModal("core_gui/textmodal", opts, function(txt, el) {
+			var retText = $(el.parent()).find('.text-modal-field').val();
+			console.log(retText);
+	  		that.hideModal();
+	  		if (exists(cb)) {
+	  			cb(txt, retText);
+  			}
+		});
+	}
+	//----------------------------------------------------------------
 	// messageModal
 	//
 	this.messageModal = function(message, btns, cb) {
-		opts = {title: "Crammly Message",
+		opts = {title: "Feedback! Message",
 				data: {msg: message},
 				buttons:['Ok']
 		}
@@ -144,6 +178,7 @@ var vgs = function() {
 		});
 	}
 
+
 	this.alertBox = function(message, cb) {
 		that.messageModal(message, null, cb);
 	}
@@ -151,10 +186,14 @@ var vgs = function() {
 	//----------------------------------------------------------------
 	// hideModal
 	//
-	// hides the modal
+	// hides the TOPMOST modal window
+	//
 	this.hideModal = function() {
 		that.hideMask();
-		$(".vg-modal").remove();
+		var allWindows = $(".vg-modal");
+		if (allWindows.length > 0) {
+			allWindows[allWindows.length-1].remove();
+		}	
 	}
 
 	//----------------------------------------------------------------
@@ -184,7 +223,7 @@ var vgs = function() {
 	// setBtnClick
 	function setBtnClick(el, cb) {
 		$(el).click(function() {
-			cb($(el).text());
+			cb($(el).text(), el);
 		});
 	}
 
@@ -209,11 +248,11 @@ var vgs = function() {
 			e = $(e).text(opts[i]);
 			$(e).click(function(e) {
 				var txt = $(e.target).text();
-				cb(txt);
+				cb(txt, el);
 			});
 			$(el).append(e);
 		}
-		$(".vg-btn").first().focus();
+		$(el).find(".vg-btn").first().focus();
 
 		setupButtonKeyActions ("vg-tabable");
 	}
